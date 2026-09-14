@@ -1,0 +1,17 @@
+name: CI
+on:
+  push: { branches: ["**"] }
+  pull_request:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: android-actions/setup-android@v3
+      # Use the committed Gradle wrapper (pinned to 8.7, compatible with AGP 8.2.2) — not
+      # the runner's system Gradle, which may be too new for the Android Gradle Plugin.
+      - name: Build + unit-test the Android SDK
+        run: ./gradlew :cookiemunch:assembleRelease :cookiemunch:testReleaseUnitTest --no-daemon

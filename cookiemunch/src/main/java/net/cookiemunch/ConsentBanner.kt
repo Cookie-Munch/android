@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -37,6 +38,12 @@ fun ConsentBanner(
     acceptLabel: String = "Allow all",
     declineLabel: String = "Reject all",
 ) {
+    // On a television the phone strip is unusable from a remote; hand over to the TV layout.
+    if (isTelevision(LocalConfiguration.current)) {
+        TvConsentBanner(client, modifier, title, message, acceptLabel, declineLabel)
+        return
+    }
+
     val state by client.state.collectAsState()
     if (state.hasResponse) return
 

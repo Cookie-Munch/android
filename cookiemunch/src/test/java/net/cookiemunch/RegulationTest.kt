@@ -252,3 +252,39 @@ class ConsentRegulationTest {
         assertTrue(c.applicableRegulation().gdprApplies)
     }
 }
+
+/**
+ * Around twenty US states have comprehensive privacy laws that differ on what a consent UI
+ * must do. Only the server can say which applies — a device's locale is a country at best —
+ * so the SDK reads it from the config rather than guessing.
+ */
+class UsStateLawTest {
+    @Test
+    fun `parses the state law the server resolved`() {
+        val json = """
+            {"regulation":{"region":"us-tx","class":"us","regulations":{"gdprApplies":false,"ccpaApplies":true,"lgpdApplies":false},
+            "model":"opt-out","defaultState":"granted","framework":"gpp","forcedOptOut":false,"consentRequired":true,
+            "stateLaw":{"id":"tdpsa","state":"TX","name":"Texas Data Privacy and Security Act",
+            "universalOptOut":true,"universalOptOutInForce":true,"sensitiveOptIn":true,"minorOptInUnder":13}}}
+        """.trimIndent()
+        val law = Regulation.fromConfigJson(json)?.stateLaw
+        assertEquals("tdpsa", law?.id)
+        assertEquals("TX", law?.state)
+        assertEquals(true, law?.sensitiveOptIn)
+        assertEquals(13, law?.minorOptInUnder)
+    }
+
+    @Test
+    fun `is null when the server named no state law`() {
+        val json = """
+            {"regulation":{"region":"de","class":"eu","regulations":{"gdprApplies":true,"ccpaApplies":false,"lgpdApplies":false},
+            "model":"opt-in","defaultState":"denied","framework":"tcf","forcedOptOut":false,"consentRequired":true}}
+        """.trimIndent()
+        assertNull(Regulation.fromConfigJson(json)?.stateLaw)
+    }
+
+    @Test
+    fun `local resolution does not invent one`() {
+        assertNull(Regulation.resolve("us-tx").stateLaw)
+    }
+}

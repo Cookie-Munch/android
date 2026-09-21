@@ -60,7 +60,31 @@ data class Regulation(
      * person already made in the app.
      */
     val consentRequired: Boolean,
+    /**
+     * The US state law governing this person, when the server resolved one.
+     *
+     * Around twenty states have comprehensive laws now and they differ on what a consent
+     * UI must do. Only the server can say which applies — a device's locale gives a
+     * country at best, never a state — so this is null when the regime was resolved on
+     * device, and populated from `/config/:cbid`.
+     */
+    val stateLaw: UsStateLaw? = null,
 ) {
+    /** One US state privacy law, as the server resolved it. */
+    data class UsStateLaw(
+        /** Stable id, e.g. `"tdpsa"`. */
+        val id: String,
+        /** Two-letter state code. */
+        val state: String,
+        val name: String,
+        /** The law requires honouring a universal opt-out signal. */
+        val universalOptOut: Boolean,
+        /** Sensitive data needs opt-in consent rather than an opt-out. */
+        val sensitiveOptIn: Boolean,
+        /** Opt-in required below this age for sale / targeted advertising; 0 = no rule. */
+        val minorOptInUnder: Int,
+    )
+
     companion object {
         // EU 27 + EEA + UK, lowercase ISO 3166-1 alpha-2.
         private val EU_EEA_UK = setOf(
@@ -154,6 +178,28 @@ data class Regulation(
                     regulation.optBoolean("consentRequired")
                 } else {
                     !regulation.optBoolean("forcedOptOut")
+                },
+                stateLaw = regulation.optJSONObject("stateLaw")?.let { law ->
+                    val id = law.optString("id")
+                    val state = law.optString("state")
+                    if (id.isEmpty() || state.isEmpty()) {
+                        null
+                    } else {
+                        UsStateLaw(
+                            id = id,
+                            state = state,
+                            name = law.optString("name", id),
+                            // Prefer whether the duty is in force; fall back to whether the
+                            // law mandates it, for a server predating the distinction.
+                            universalOptOut = if (law.has("universalOptOutInForce")) {
+                                law.optBoolean("universalOptOutInForce")
+                            } else {
+                                law.optBoolean("universalOptOut")
+                            },
+                            sensitiveOptIn = law.optBoolean("sensitiveOptIn"),
+                            minorOptInUnder = law.optInt("minorOptInUnder", 0),
+                        )
+                    }
                 },
             )
             } catch (_: Exception) {

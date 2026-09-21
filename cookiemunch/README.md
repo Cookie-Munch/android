@@ -1,6 +1,6 @@
 # Cookie Munch — Android SDK
 
-A small, dependency-light Kotlin consent client for the self-hosted **Cookie Munch**
+A small, dependency-light Kotlin consent client for **Cookie Munch**
 CMP. It mirrors the React Native and iOS SDKs so consent records are uniform across
 platforms:
 

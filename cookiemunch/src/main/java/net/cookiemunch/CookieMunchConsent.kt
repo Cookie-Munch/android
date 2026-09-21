@@ -74,6 +74,7 @@ class CookieMunchConsent(
     private val transport: ConsentTransport = HttpUrlConnectionTransport(),
     private val region: String = "unknown",
     private val storageKey: String = DEFAULT_KEY,
+    subjectId: String? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val now: () -> Long = { System.currentTimeMillis() },
     private val stamp: () -> String = { UUID.randomUUID().toString() },
@@ -96,6 +97,98 @@ class CookieMunchConsent(
 
     /** True if [category] is currently granted (`NECESSARY` is always granted). */
     fun granted(category: Category): Boolean = _state.value.granted(category)
+
+    // --- Applicable regulation -------------------------------------------------
+
+    /**
+     * Who this device's decisions belong to, if the app has said. Deliberately NOT
+     * persisted with the decision: who is signed in is the app's business and can change
+     * between launches, so baking a stale account id into a restored record would
+     * attribute one person's consent to another.
+     */
+    @Volatile private var subject: String? = subjectId?.ifEmpty { null }
+
+    /** Set once the server has told us the regime for this person's real location. */
+    @Volatile private var serverRegulation: Regulation? = null
+    @Volatile private var gpc = false
+    @Volatile private var dnt = false
+
+    /**
+     * Which privacy regime applies to this person: GDPR / CCPA / LGPD, opt-in vs
+     * opt-out, and which signalling framework third parties will read.
+     *
+     * Answers immediately and offline from the region this client was configured with.
+     * Call [refreshRegulation] to replace that with the server's IP-derived answer — a
+     * device's locale tells you where the phone was sold, not where its owner is.
+     */
+    fun applicableRegulation(): Regulation =
+        serverRegulation ?: Regulation.resolve(region = region, gpc = gpc, dnt = dnt)
+
+    /**
+     * Whether you still owe this person a consent prompt.
+     *
+     * False once they have made an explicit decision in the app, and false when an
+     * opt-out signal has already expressed a refusal on their behalf. Check this before
+     * showing a banner: an app that re-prompts someone who already answered is both
+     * annoying and, under an opt-out regime, wrong.
+     */
+    fun isConsentRequired(): Boolean =
+        !_state.value.hasResponse && applicableRegulation().consentRequired
+
+    /**
+     * Record a Global Privacy Control signal. Under an opt-out regime this counts as a
+     * refusal on this person's behalf, so no prompt is owed; under GDPR nothing fires
+     * before consent anyway, so the prompt still is.
+     */
+    fun setGlobalPrivacyControl(enabled: Boolean) {
+        gpc = enabled
+        serverRegulation = null // the local resolver now has newer information
+    }
+
+    /** Record a legacy Do Not Track signal. Treated exactly like GPC. */
+    fun setDoNotTrack(enabled: Boolean) {
+        dnt = enabled
+        serverRegulation = null
+    }
+
+    // --- cross-surface identity ------------------------------------------------
+
+    /** The account id currently attached to this device's decisions, or null. */
+    fun getSubjectId(): String? = subject
+
+    /**
+     * Attach this device's decisions to a signed-in account, so one person's consent can
+     * be correlated across web, Android, iOS and desktop (`GET /v1/subjects/:id/consent`).
+     *
+     * Call it after sign-in rather than at construction: an app builds its consent client
+     * at launch, before anyone has signed in. Pass null on sign-out — continuing to send
+     * the id would attribute the next person's decisions on a shared device to the
+     * account that just left.
+     *
+     * The id is opaque to us: stored and bound into the tamper-evident hash chain, never
+     * interpreted. It applies to decisions made from now on; it does not rewrite history.
+     */
+    fun setSubjectId(id: String?) {
+        subject = id?.ifEmpty { null }
+    }
+
+    /**
+     * Ask the server which regime applies, based on the IP it sees, and adopt the
+     * answer. Never throws: offline, or against a server too old to return a
+     * `regulation` block, the locally-resolved regime stays in place — a failed
+     * refresh must never leave the app with no answer to "do I prompt".
+     */
+    suspend fun refreshRegulation(): Regulation {
+        val body = withContext(ioDispatcher) {
+            try {
+                transport.get("$apiBase/config/$cbid", region)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        if (body != null) Regulation.fromConfigJson(body)?.let { serverRegulation = it }
+        return applicableRegulation()
+    }
 
     /**
      * Registers a callback fired on every state change. Returns an unsubscribe function.
@@ -209,6 +302,9 @@ class CookieMunchConsent(
             },
         )
         put("method", s.method)
+        // Omitted entirely when absent, so a decision made while signed out is identical
+        // to one from a build that never had this field.
+        subject?.let { put("subjectId", it) }
         put("ver", s.ver)
         put("utc", s.utc)
         put("url", "app://$cbid")

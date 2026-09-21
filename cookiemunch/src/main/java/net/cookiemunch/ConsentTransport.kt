@@ -10,6 +10,14 @@ import java.net.URL
 interface ConsentTransport {
     /** POSTs [jsonBody] to [url] with the `X-CookieMunch-Region` header set to [region]. */
     fun post(url: String, region: String, jsonBody: String)
+
+    /**
+     * GETs [url] and returns the body. Only used to refresh the applicable regulation
+     * from `/config/:cbid`. Defaulted so a transport written before that feature
+     * existed keeps compiling; returning null means "no answer", and the client then
+     * stays with the regime it resolved locally.
+     */
+    fun get(url: String, region: String): String? = null
 }
 
 /**
@@ -34,6 +42,22 @@ class HttpUrlConnectionTransport(
             // Drain the response so the socket can be released back to the pool.
             val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
             stream?.use { it.readBytes() }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    override fun get(url: String, region: String): String? {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = connectTimeoutMs
+            readTimeout = readTimeoutMs
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("X-CookieMunch-Region", region)
+        }
+        return try {
+            if (conn.responseCode !in 200..299) return null
+            conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
         } finally {
             conn.disconnect()
         }

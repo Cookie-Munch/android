@@ -110,6 +110,15 @@ class CookieMunchConsent(
 
     /** Set once the server has told us the regime for this person's real location. */
     @Volatile private var serverRegulation: Regulation? = null
+
+    /**
+     * The banner's words in this device's language, once the server has answered. Null until
+     * [refreshRegulation] runs — the banners fall back to English, so an app that has never
+     * reached the network still asks the question.
+     */
+    @Volatile
+    var copy: LocalizedCopy? = null
+        private set
     @Volatile private var gpc = false
     @Volatile private var dnt = false
 
@@ -179,14 +188,20 @@ class CookieMunchConsent(
      * refresh must never leave the app with no answer to "do I prompt".
      */
     suspend fun refreshRegulation(): Regulation {
+        // `lang` asks for this device's language; the same call brings back the regime and
+        // the banner's words, so the SDK never carries forty catalogues of its own.
+        val language = LocalizedCopy.preferredLanguage()
         val body = withContext(ioDispatcher) {
             try {
-                transport.get("$apiBase/config/$cbid", region)
+                transport.get("$apiBase/config/$cbid?lang=${java.net.URLEncoder.encode(language, "UTF-8")}", region)
             } catch (_: Exception) {
                 null
             }
         }
-        if (body != null) Regulation.fromConfigJson(body)?.let { serverRegulation = it }
+        if (body != null) {
+            Regulation.fromConfigJson(body)?.let { serverRegulation = it }
+            LocalizedCopy.fromConfigJson(body)?.let { copy = it }
+        }
         return applicableRegulation()
     }
 

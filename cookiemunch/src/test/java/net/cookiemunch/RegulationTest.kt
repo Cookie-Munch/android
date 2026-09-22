@@ -222,7 +222,12 @@ class ConsentRegulationTest {
         assertTrue(c.applicableRegulation().ccpaApplies)
         assertFalse(c.applicableRegulation().gdprApplies)
         assertEquals(ConsentModel.OPT_OUT, c.applicableRegulation().model)
-        assertEquals("https://cmp.example.com/config/test-cbid" to "de", transport.gets.single())
+        // The same call asks for this device's language, so the response also carries the
+        // banner's words — the SDK never ships forty catalogues of its own.
+        val (url, sentRegion) = transport.gets.single()
+        assertEquals("https://cmp.example.com/config/test-cbid", url.substringBefore("?"))
+        assertTrue(url.contains("lang="))
+        assertEquals("de", sentRegion)
     }
 
     /** Offline, or a server not yet upgraded. Either way the app keeps an answer. */

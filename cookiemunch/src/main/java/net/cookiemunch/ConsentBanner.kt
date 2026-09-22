@@ -33,14 +33,22 @@ import kotlinx.coroutines.launch
 fun ConsentBanner(
     client: CookieMunchConsent,
     modifier: Modifier = Modifier,
-    title: String = "We value your privacy",
-    message: String = "We use cookies and similar technologies to improve your experience. You decide what we use.",
-    acceptLabel: String = "Allow all",
-    declineLabel: String = "Reject all",
+    title: String? = null,
+    message: String? = null,
+    acceptLabel: String? = null,
+    declineLabel: String? = null,
 ) {
+    // Precedence: what the caller passed, then the server's copy for this device's language,
+    // then English — so a banner still asks before the first refresh has landed.
+    val copy = client.copy
+    val titleText = title ?: copy?.title ?: "We value your privacy"
+    val messageText = message ?: copy?.body
+        ?: "We use cookies and similar technologies to improve your experience. You decide what we use."
+    val acceptText = acceptLabel ?: copy?.acceptAll ?: "Allow all"
+    val declineText = declineLabel ?: copy?.rejectAll ?: "Reject all"
     // On a television the phone strip is unusable from a remote; hand over to the TV layout.
     if (isTelevision(LocalConfiguration.current)) {
-        TvConsentBanner(client, modifier, title, message, acceptLabel, declineLabel)
+        TvConsentBanner(client, modifier, titleText, messageText, acceptText, declineText)
         return
     }
 
@@ -51,8 +59,8 @@ fun ConsentBanner(
 
     Surface(modifier = modifier, shadowElevation = 8.dp, color = Color.White) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-            Text(title)
-            Text(message)
+            Text(titleText)
+            Text(messageText)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -61,14 +69,14 @@ fun ConsentBanner(
                     onClick = { scope.launch { client.decline() } },
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(declineLabel)
+                    Text(declineText)
                 }
                 Button(
                     onClick = { scope.launch { client.accept() } },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0E6E5C)),
                 ) {
-                    Text(acceptLabel)
+                    Text(acceptText)
                 }
             }
         }

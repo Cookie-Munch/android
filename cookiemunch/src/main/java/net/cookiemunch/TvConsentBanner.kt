@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,6 +30,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -55,18 +58,27 @@ fun isTelevision(configuration: Configuration): Boolean =
 fun TvConsentBanner(
     client: CookieMunchConsent,
     modifier: Modifier = Modifier,
-    title: String = "We value your privacy",
-    message: String = "We use cookies and similar technologies to improve your experience. You decide what we use.",
-    acceptLabel: String = "Allow all",
-    declineLabel: String = "Reject all",
+    title: String? = null,
+    message: String? = null,
+    acceptLabel: String? = null,
+    declineLabel: String? = null,
 ) {
     val state by client.state.collectAsState()
     if (state.hasResponse) return
+
+    val copy = client.copy
+    val titleText = title ?: copy?.title ?: "We value your privacy"
+    val messageText = message ?: copy?.body
+        ?: "We use cookies and similar technologies to improve your experience. You decide what we use."
+    val acceptText = acceptLabel ?: copy?.acceptAll ?: "Allow all"
+    val declineText = declineLabel ?: copy?.rejectAll ?: "Reject all"
 
     val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { first.requestFocus() }
 
+    val direction = if (copy?.rtl == true) LayoutDirection.Rtl else LayoutDirection.Ltr
+    CompositionLocalProvider(LocalLayoutDirection provides direction) {
     Box(
         modifier = modifier.fillMaxSize().background(Color(0x99000000)),
         contentAlignment = Alignment.Center,
@@ -77,9 +89,9 @@ fun TvConsentBanner(
                 .background(Color(0xFF1E1E1E), RoundedCornerShape(20.dp))
                 .padding(48.dp),
         ) {
-            Text(title, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
+            Text(titleText, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                message,
+                messageText,
                 color = Color(0xFFD0D0D0),
                 fontSize = 20.sp,
                 lineHeight = 28.sp,
@@ -89,10 +101,11 @@ fun TvConsentBanner(
                 modifier = Modifier.padding(top = 36.dp),
                 horizontalArrangement = Arrangement.spacedBy(28.dp),
             ) {
-                TvChoice(declineLabel, Modifier.focusRequester(first)) { scope.launch { client.decline() } }
-                TvChoice(acceptLabel) { scope.launch { client.accept() } }
+                TvChoice(declineText, Modifier.focusRequester(first)) { scope.launch { client.decline() } }
+                TvChoice(acceptText) { scope.launch { client.accept() } }
             }
         }
+    }
     }
 }
 

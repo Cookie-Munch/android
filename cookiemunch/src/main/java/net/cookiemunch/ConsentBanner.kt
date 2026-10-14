@@ -43,7 +43,7 @@ fun ConsentBanner(
     val copy = client.copy
     val titleText = title ?: copy?.title ?: "We value your privacy"
     val messageText = message ?: copy?.body
-        ?: "We use cookies and similar technologies to improve your experience. You decide what we use."
+        ?: "We use cookies. Choose which ones you allow."
     val acceptText = acceptLabel ?: copy?.acceptAll ?: "Allow all"
     val declineText = declineLabel ?: copy?.rejectAll ?: "Reject all"
     // On a television the phone strip is unusable from a remote; hand over to the TV layout.

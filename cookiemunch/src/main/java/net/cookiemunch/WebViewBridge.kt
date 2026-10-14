@@ -88,7 +88,8 @@ object WebViewBridge {
 
     /**
      * A URL parameter carrying this decision, for when script evaluation is unavailable.
-     * Append it to the URL you are about to load.
+     * Append it to the URL you are about to load. The page ignores it unless the site has
+     * `webview.urlConsent` enabled (off by default); prefer [javaScript].
      */
     @JvmStatic
     fun queryString(state: ConsentState): String =

@@ -66,11 +66,19 @@ object WebViewBridge {
         // `</script` would close an inline tag if this were ever inlined.
         .replace("<", "\\x3c")
 
+    /** Two-label public suffixes the web embed refuses as a cookie domain (`cookie-domain.ts`). */
+    internal const val TWO_LABEL_SUFFIXES = " co.uk org.uk me.uk gov.uk ac.uk com.au net.au org.au co.jp or.jp ne.jp co.nz co.za com.br com.mx co.in com.cn com.sg "
+
     /**
      * A single JavaScript statement that seeds a web view with this decision.
      *
      * One line and expression-only on purpose: [android.webkit.WebView.evaluateJavascript]
      * takes a string, and a multi-line program is a common source of silent failures.
+     *
+     * It writes the cookie with the web embed's own attributes: `Secure` on https, and —
+     * pass the site's `cookie.domain` as [domain] — on that domain when the page's host
+     * belongs to it, clearing the host-only copy. A host-only copy next to the embed's
+     * domain-wide one would shadow the visitor's later decisions.
      */
     @JvmStatic
     @JvmOverloads
@@ -78,12 +86,22 @@ object WebViewBridge {
         state: ConsentState,
         maxAge: Int = DEFAULT_MAX_AGE,
         alsoLegacyCookie: Boolean = false,
+        domain: String? = null,
     ): String {
-        val value = serialize(state)
+        val value = jsString(serialize(state))
+        val names = if (alsoLegacyCookie) listOf(COOKIE_NAME, LEGACY_COOKIE_NAME) else listOf(COOKIE_NAME)
         val attrs = ";path=/;max-age=$maxAge;SameSite=Lax"
-        fun write(name: String) =
-            "document.cookie='${jsString(name)}='+'${jsString(value)}'+'${jsString(attrs)}';"
-        return if (alsoLegacyCookie) write(COOKIE_NAME) + write(LEGACY_COOKIE_NAME) else write(COOKIE_NAME)
+        if (domain.isNullOrEmpty()) {
+            return names.joinToString("") {
+                "document.cookie='$it='+'$value'+'$attrs'+(location.protocol==='https:'?';Secure':'');"
+            }
+        }
+        val writes = names.joinToString("") {
+            "document.cookie='$it='+'$value'+'$attrs'+s+m;if(m)document.cookie='$it=;path=/;max-age=0;SameSite=Lax';"
+        }
+        return "(function(d,h){d=d.trim().replace(/^\\.+/,'').toLowerCase();" +
+            "var m=d.indexOf('.')>0&&'$TWO_LABEL_SUFFIXES'.indexOf(' '+d+' ')<0&&(h===d||h.slice(-d.length-1)==='.'+d)?';domain=.'+d:''," +
+            "s=location.protocol==='https:'?';Secure':'';$writes})('${jsString(domain)}',location.hostname.toLowerCase());"
     }
 
     /**

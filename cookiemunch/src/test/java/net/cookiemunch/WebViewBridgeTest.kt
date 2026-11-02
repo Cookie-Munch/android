@@ -65,7 +65,7 @@ class WebViewBridgeTest {
      * The statement with the decision replaced by V, pinned to the web embed's
      * `webViewJavaScript` so every platform writes the engine's attributes (CKM-S-01).
      */
-    private fun skeleton(js: String) = js.replace(Regex("""\+'[^']+'\+"""), "+'V'+")
+    private fun skeleton(js: String) = js.replace(Regex("""\+'[^']+'\+"""), "+'V'+").replace(Regex("""='\+'[^']+'\)<0"""), "='+'V')<0")
 
     @Test
     fun writesSecureOnHttpsLikeTheEngine() {
@@ -78,7 +78,7 @@ class WebViewBridgeTest {
     @Test
     fun withCookieDomainWritesItAndClearsTheHostOnlyCopy() {
         assertEquals(
-            """(function(d,h){d=d.trim().replace(/^\.+/,'').toLowerCase();var m=d.indexOf('.')>0&&' co.uk org.uk me.uk gov.uk ac.uk com.au net.au org.au co.jp or.jp ne.jp co.nz co.za com.br com.mx co.in com.cn com.sg '.indexOf(' '+d+' ')<0&&(h===d||h.slice(-d.length-1)==='.'+d)?';domain=.'+d:'',s=location.protocol==='https:'?';Secure':'';document.cookie='CookieMunch='+'V'+';path=/;max-age=60;SameSite=Lax'+s+m;if(m)document.cookie='CookieMunch=;path=/;max-age=0;SameSite=Lax';document.cookie='CookieConsent='+'V'+';path=/;max-age=60;SameSite=Lax'+s+m;if(m)document.cookie='CookieConsent=;path=/;max-age=0;SameSite=Lax';})('example.com',location.hostname.toLowerCase());""",
+            """(function(d,h){d=d.trim().replace(/^\.+/,'').toLowerCase();var m=d.indexOf('.')>0&&' co.uk org.uk me.uk gov.uk ac.uk com.au net.au org.au co.jp or.jp ne.jp co.nz co.za com.br com.mx co.in com.cn com.sg '.indexOf(' '+d+' ')<0&&(h===d||h.slice(-d.length-1)==='.'+d)?';domain=.'+d:'',s=location.protocol==='https:'?';Secure':'';document.cookie='CookieMunch='+'V'+';path=/;max-age=60;SameSite=Lax'+s+m;if(m){document.cookie='CookieMunch=;path=/;max-age=0;SameSite=Lax';if(document.cookie.split('; ').indexOf('CookieMunch='+'V')<0)document.cookie='CookieMunch='+'V'+';path=/;max-age=60;SameSite=Lax'+s;}document.cookie='CookieConsent='+'V'+';path=/;max-age=60;SameSite=Lax'+s+m;if(m){document.cookie='CookieConsent=;path=/;max-age=0;SameSite=Lax';if(document.cookie.split('; ').indexOf('CookieConsent='+'V')<0)document.cookie='CookieConsent='+'V'+';path=/;max-age=60;SameSite=Lax'+s;}})('example.com',location.hostname.toLowerCase());""",
             skeleton(WebViewBridge.javaScript(state, maxAge = 60, alsoLegacyCookie = true, domain = "example.com")),
         )
     }

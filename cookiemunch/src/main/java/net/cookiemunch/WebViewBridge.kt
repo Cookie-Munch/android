@@ -97,7 +97,7 @@ object WebViewBridge {
             }
         }
         val writes = names.joinToString("") {
-            "document.cookie='$it='+'$value'+'$attrs'+s+m;if(m)document.cookie='$it=;path=/;max-age=0;SameSite=Lax';"
+            "document.cookie='$it='+'$value'+'$attrs'+s+m;if(m){document.cookie='$it=;path=/;max-age=0;SameSite=Lax';if(document.cookie.split('; ').indexOf('$it='+'$value')<0)document.cookie='$it='+'$value'+'$attrs'+s;}"
         }
         return "(function(d,h){d=d.trim().replace(/^\\.+/,'').toLowerCase();" +
             "var m=d.indexOf('.')>0&&'$TWO_LABEL_SUFFIXES'.indexOf(' '+d+' ')<0&&(h===d||h.slice(-d.length-1)==='.'+d)?';domain=.'+d:''," +
